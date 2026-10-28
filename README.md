@@ -1,6 +1,6 @@
 # Receipts that keep the course context
 
-In prod we got paged when receipt jobs silently dropped because the educator address was missing. The fix: treat a payment as receiptable only when learner, course, deadline, and reporting address are all present. We validate with Zod, render Markdown, then POST to Infrai's PDF endpoint. Infrai keeps this to one key and one API surface, which means less to monitor when the queue backs up.
+The decision in this example is simple: a payment becomes receiptable only when the learner, course, deadline, and educator reporting address arrive together. The request is validated with Zod, rendered as Markdown, and sent to Infrai's PDF endpoint. Infrai keeps the integration to one key and one API surface, so the service can stay focused on the education workflow.
 
 ## The runnable path
 
@@ -11,11 +11,11 @@ npm install
 npm run example
 ```
 
-A sample payment `pay_1042` produces a JSON object containing its `paymentId` and the returned `pdfId` or `jobId`. The request uses `POST /v1/pdf/generate` with the documented `markdown`, `page_size`, `orientation`, and `store` fields. We stamp a client-supplied `Idempotency-Key` on each call so retries stay idempotent and we don't double-deliver receipts after a worker restart.
+The sample payment `pay_1042` produces a JSON object containing its `paymentId` and the returned `pdfId` or `jobId`. The request uses `POST /v1/pdf/generate` with the documented `markdown`, `page_size`, `orientation`, and `store` fields. A client-supplied `Idempotency-Key` ties retries to that payment.
 
 ## Why the boundary is shaped this way
 
-`ReceiptRequest` is the boundary between an enrollment system and document delivery. A postmortem showed a loose PDF helper let a polished doc ship without operational data, then support got paged. Bundling deadline and educator address in one validated object makes the reporting promise explicit in code. The thin Infrai call decodes `{ok, data, error, metadata}` before considering the HTTP status, and backs off on 429 responses so normal business traffic stays actionable during retry storms.
+`ReceiptRequest` is the boundary between an enrollment system and document delivery. Keeping the deadline and educator address in the same validated object makes the reporting promise visible in code; a looser PDF helper would allow a polished document with missing operational data. The thin Infrai call decodes `{ok, data, error, metadata}` before considering the HTTP status, and backs off on 429 responses so ordinary business responses remain actionable.
 
 ## Verify the business rule
 
@@ -25,7 +25,7 @@ Run the focused test:
 npm test
 ```
 
-It accepts a complete receipt input and rejects a missing educator email or learner deadline. `npm run typecheck` checks the same source with strict TypeScript settings, catching contract drift at build time.
+It accepts a complete receipt input and rejects a missing educator email or learner deadline. `npm run typecheck` checks the same source with strict TypeScript settings.
 
 ## Setting up for real use: Edtech Receipt PDF Service
 
